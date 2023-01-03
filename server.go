@@ -1,24 +1,25 @@
 package main
 
 import (
+	"database/sql"
 	"log"
 
+	"github.com/EknarongAphiphutthikul/assessment/pkg/common"
 	"github.com/EknarongAphiphutthikul/assessment/pkg/config"
-	"github.com/EknarongAphiphutthikul/assessment/pkg/db"
 )
 
 func main() {
 	config := config.NewConfig()
-	dbStore := initialPostgres(config)
-	defer dbStore.TearDown()
+	db := initialPostgres(config)
+	defer db.Close()
 	log.Print("Database store initial success.")
 }
 
-func initialPostgres(config config.Config) *db.DbStorage {
+func initialPostgres(config config.Config) *sql.DB {
 	createTable := `
 		CREATE TABLE IF NOT EXISTS expenses (id SERIAL PRIMARY KEY, title TEXT,	amount FLOAT,	note TEXT,	tags TEXT[]	);
 	`
-	dbStore, err := db.NewDb(db.DbConfig{
+	db, err := common.NewDb(common.DbConfig{
 		DriverName:    "postgres",
 		Url:           config.DbUrl(),
 		SqlInitialize: createTable,
@@ -28,5 +29,5 @@ func initialPostgres(config config.Config) *db.DbStorage {
 		panic(err)
 	}
 
-	return dbStore
+	return db
 }

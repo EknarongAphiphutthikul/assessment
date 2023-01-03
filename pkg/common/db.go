@@ -1,8 +1,7 @@
-package db
+package common
 
 import (
 	"database/sql"
-	"log"
 
 	_ "github.com/lib/pq"
 )
@@ -13,11 +12,7 @@ type DbConfig struct {
 	SqlInitialize string
 }
 
-type DbStorage struct {
-	db *sql.DB
-}
-
-func NewDb(config DbConfig) (*DbStorage, error) {
+func NewDb(config DbConfig) (*sql.DB, error) {
 	db, err := sql.Open(config.DriverName, config.Url)
 	if err != nil {
 		return nil, err
@@ -30,10 +25,5 @@ func NewDb(config DbConfig) (*DbStorage, error) {
 		}
 	}
 
-	return &DbStorage{db: db}, nil
-}
-
-func (s *DbStorage) TearDown() {
-	s.db.Close()
-	log.Printf("DB Storage Teardown.")
+	return db, nil
 }
