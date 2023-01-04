@@ -11,8 +11,10 @@ import (
 
 	"github.com/EknarongAphiphutthikul/assessment/pkg/common"
 	"github.com/EknarongAphiphutthikul/assessment/pkg/config"
+	"github.com/EknarongAphiphutthikul/assessment/pkg/expenses"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
+	"github.com/labstack/gommon/log"
 	"github.com/sirupsen/logrus"
 )
 
@@ -26,7 +28,7 @@ func main() {
 	defer db.Close()
 	log.Info("Database store initial success.")
 
-	gracefulShutdown(startServer(config, log), log)
+	gracefulShutdown(startServer(config, log, db), log)
 }
 
 func initialLog() *logrus.Logger {
@@ -57,14 +59,33 @@ func initialPostgres(config config.Config, log *logrus.Logger) *sql.DB {
 	return db
 }
 
-func startServer(config config.Config, log *logrus.Logger) *http.Server {
+func startServer(config config.Config, logger *logrus.Logger, db *sql.DB) *http.Server {
+	handler := echoHandler(logger, db)
+
+	srv := &http.Server{
+		Addr:    ":" + config.Port(),
+		Handler: handler,
+	}
+
+	logger.Infof("App started. PORT=%v", config.Port())
+	go func() {
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			logger.Fatalf("shutting down the server %v", err)
+		}
+	}()
+
+	return srv
+}
+
+func echoHandler(logger *logrus.Logger, db *sql.DB) *echo.Echo {
 	e := echo.New()
+	e.Logger.SetLevel(log.INFO)
 	e.Use(middleware.RequestLoggerWithConfig(middleware.RequestLoggerConfig{
 		LogURI:      true,
 		LogStatus:   true,
 		LogRemoteIP: true,
 		LogValuesFunc: func(c echo.Context, values middleware.RequestLoggerValues) error {
-			log.WithFields(logrus.Fields{
+			logger.WithFields(logrus.Fields{
 				"URI":    values.URI,
 				"status": values.Status,
 			}).Info("request")
@@ -74,19 +95,17 @@ func startServer(config config.Config, log *logrus.Logger) *http.Server {
 	}))
 	e.Use(middleware.Recover())
 
-	srv := &http.Server{
-		Addr:    ":" + config.Port(),
-		Handler: e,
-	}
+	// set Expenses Handler
+	expensesHandler(e, db)
 
-	log.Infof("App started. PORT=%v", config.Port())
-	go func() {
-		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatalf("shutting down the server %v", err)
-		}
-	}()
+	return e
+}
 
-	return srv
+func expensesHandler(e *echo.Echo, db *sql.DB) {
+	expenDb := expenses.New(db)
+	expenHandler := expenses.NewHandler(expenDb)
+	g := e.Group("/expenses")
+	g.POST("", expenHandler.AddExpenses)
 }
 
 func gracefulShutdown(srv *http.Server, log *logrus.Logger) {
