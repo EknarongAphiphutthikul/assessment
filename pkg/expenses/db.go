@@ -6,21 +6,25 @@ import (
 	"github.com/lib/pq"
 )
 
+type IDataMgmt interface {
+	QueryRow(query string, args ...any) *sql.Row
+}
+
 type DataMgmt struct {
-	sql *sql.DB
+	dataMgmt IDataMgmt
 }
 
-func New(s *sql.DB) *DataMgmt {
-	return &DataMgmt{s}
+func New(d IDataMgmt) *DataMgmt {
+	return &DataMgmt{d}
 }
 
-func (mgmt DataMgmt) Insert(req ExpensesRequest) (int64, error) {
-	row := mgmt.sql.QueryRow("INSERT INTO expenses (title, amount, note, tags) values ($1, $2, $3, $4) RETURNING id", req.Title, req.Amount, req.Note, pq.Array(req.Tags))
+func (mgmt DataMgmt) Insert(req ExpensesRequest) (*ExpensesResponse, error) {
+	row := mgmt.dataMgmt.QueryRow("INSERT INTO expenses (title, amount, note, tags) values ($1, $2, $3, $4) RETURNING id, title, amount, note, tags", req.Title, req.Amount, req.Note, pq.Array(req.Tags))
 
-	var id int64
-	err := row.Scan(&id)
+	result := &ExpensesResponse{}
+	err := row.Scan(&result.Id, &result.Title, &result.Amount, &result.Note, pq.Array(&result.Tags))
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
-	return id, nil
+	return result, nil
 }
