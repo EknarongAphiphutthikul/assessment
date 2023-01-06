@@ -2,6 +2,7 @@ package expenses
 
 import (
 	"net/http"
+	"strconv"
 
 	"github.com/EknarongAphiphutthikul/assessment/pkg/common"
 	"github.com/labstack/echo/v4"
@@ -9,6 +10,7 @@ import (
 
 type Services interface {
 	AddExpenses(req ExpensesRequest) (*ExpensesResponse, error)
+	SearchExpensesById(id int64) (*ExpensesResponse, error)
 }
 type Handler struct {
 	log     common.Log
@@ -35,4 +37,23 @@ func (h Handler) AddExpenses(c echo.Context) error {
 	}
 
 	return c.JSON(http.StatusCreated, resp)
+}
+
+func (h Handler) SearchExpensesById(c echo.Context) error {
+	paramId := c.Param("id")
+	id, err := strconv.ParseInt(paramId, 10, 64)
+	if err != nil {
+		return c.NoContent(http.StatusBadRequest)
+	}
+
+	resp, err := h.service.SearchExpensesById(id)
+	if err != nil {
+		if cmErr, ok := err.(*common.Error); ok {
+			return c.NoContent(cmErr.Code)
+		}
+		h.log.Errorf("Handler SearchExpensesById Error : %s", err)
+		return c.NoContent(http.StatusInternalServerError)
+	}
+
+	return c.JSON(http.StatusOK, resp)
 }
