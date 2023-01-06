@@ -13,4 +13,5 @@ func Routes(echo *echo.Echo, ins *config.Instance) {
 	echo.POST("/expenses", expenHandler.AddExpenses)
 	echo.GET("/expenses/:id", expenHandler.SearchExpensesById)
 	echo.PUT("/expenses/:id", expenHandler.UpdateExpenses)
+	echo.GET("/expenses", expenHandler.SearchExpensesAll)
 }

@@ -12,6 +12,7 @@ type Services interface {
 	AddExpenses(req ExpensesRequest) (*ExpensesResponse, error)
 	SearchExpensesById(id int64) (*ExpensesResponse, error)
 	UpdateExpenses(id int64, req ExpensesRequest) (*ExpensesResponse, error)
+	SearchExpensesAll() ([]ExpensesResponse, error)
 }
 type Handler struct {
 	log     common.Log
@@ -77,6 +78,19 @@ func (h Handler) UpdateExpenses(c echo.Context) error {
 			return c.NoContent(cmErr.Code)
 		}
 		h.log.Errorf("Handler UpdateExpenses Error : %s", err)
+		return c.NoContent(http.StatusInternalServerError)
+	}
+
+	return c.JSON(http.StatusOK, resp)
+}
+
+func (h Handler) SearchExpensesAll(c echo.Context) error {
+	resp, err := h.service.SearchExpensesAll()
+	if err != nil {
+		if cmErr, ok := err.(*common.Error); ok {
+			return c.NoContent(cmErr.Code)
+		}
+		h.log.Errorf("Handler SearchExpensesAll Error : %s", err)
 		return c.NoContent(http.StatusInternalServerError)
 	}
 

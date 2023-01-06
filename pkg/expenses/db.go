@@ -66,7 +66,7 @@ func (mgmt DataMgmt) Update(id int64, req ExpensesRequest) (*ExpensesResponse, e
 	return result, nil
 }
 
-func (mgmt DataMgmt) SearchAll(id int64) ([]ExpensesResponse, error) {
+func (mgmt DataMgmt) SearchAll() ([]ExpensesResponse, error) {
 	stmt, err := mgmt.dataMgmt.Prepare("select id, title, amount, note, tags from expenses")
 	if err != nil {
 		return nil, err

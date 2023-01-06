@@ -14,6 +14,7 @@ type DBCaseSuccess struct {
 	insertWasCalled     bool
 	searchByIdWasCalled bool
 	updateWasCalled     bool
+	searchAllWasCalled  bool
 }
 
 func (db *DBCaseSuccess) Insert(req ExpensesRequest) (*ExpensesResponse, error) {
@@ -52,6 +53,27 @@ func (db *DBCaseSuccess) Update(id int64, req ExpensesRequest) (*ExpensesRespons
 	return resp, nil
 }
 
+func (db *DBCaseSuccess) SearchAll() ([]ExpensesResponse, error) {
+	db.searchAllWasCalled = true
+	resp := []ExpensesResponse{
+		{
+			Id:     1,
+			Title:  "mockTitle",
+			Amount: 10,
+			Note:   "mockNote",
+			Tags:   []string{"mockTags"},
+		},
+		{
+			Id:     2,
+			Title:  "mockTitle2",
+			Amount: 9000,
+			Note:   "mockNote2",
+			Tags:   []string{"mockTags2"},
+		},
+	}
+	return resp, nil
+}
+
 type Err struct {
 	msg string
 }
@@ -64,6 +86,7 @@ type DBCaseError struct {
 	insertWasCalled     bool
 	searchByIdWasCalled bool
 	updateWasCalled     bool
+	searchAllWasCalled  bool
 }
 
 func (db *DBCaseError) Insert(req ExpensesRequest) (*ExpensesResponse, error) {
@@ -78,6 +101,11 @@ func (db *DBCaseError) SearchById(id int64) (*ExpensesResponse, error) {
 
 func (db *DBCaseError) Update(id int64, req ExpensesRequest) (*ExpensesResponse, error) {
 	db.updateWasCalled = true
+	return nil, &Err{}
+}
+
+func (db *DBCaseError) SearchAll() ([]ExpensesResponse, error) {
+	db.searchAllWasCalled = true
 	return nil, &Err{}
 }
 
@@ -197,6 +225,33 @@ func TestUpdateExpenses(t *testing.T) {
 		resp, err := service.UpdateExpenses(id, req)
 
 		assert.Equal(t, true, storage.updateWasCalled)
+		assert.NotNil(t, err)
+		assert.Nil(t, resp)
+	})
+}
+
+func TestSearchExpensesAll(t *testing.T) {
+	t.Run("should return ExpensesResponse when no error that storage.SearchAll()", func(t *testing.T) {
+		storage := &DBCaseSuccess{}
+		log := logrus.New()
+		service := NewService(storage, log)
+
+		resp, err := service.SearchExpensesAll()
+
+		assert.Equal(t, true, storage.searchAllWasCalled)
+		assert.NotNil(t, resp)
+		assert.Nil(t, err)
+		assert.Len(t, resp, 2)
+	})
+
+	t.Run("should return error when  error that storage.SearchAll()", func(t *testing.T) {
+		storage := &DBCaseError{}
+		log := logrus.New()
+		service := NewService(storage, log)
+
+		resp, err := service.SearchExpensesAll()
+
+		assert.Equal(t, true, storage.searchAllWasCalled)
 		assert.NotNil(t, err)
 		assert.Nil(t, resp)
 	})
