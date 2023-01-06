@@ -40,6 +40,7 @@ func setup(t *testing.T) (*sql.DB, func()) {
 
 		e.POST("/expenses", handler.AddExpenses)
 		e.GET("/expenses/:id", handler.SearchExpensesById)
+		e.PUT("/expenses/:id", handler.UpdateExpenses)
 		e.Start(fmt.Sprintf(":%d", serverPort))
 	}(eh, db)
 	for {
@@ -130,7 +131,6 @@ func TestSearchExpensesByIdIntegratetion(t *testing.T) {
 	targetUrl = targetUrl.JoinPath(strconv.FormatInt(id, 10))
 
 	req, err := http.NewRequest(http.MethodGet, targetUrl.String(), nil)
-	fmt.Println(req.URL.String())
 	assert.NoError(t, err)
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 	client := http.Client{}
@@ -155,5 +155,68 @@ func TestSearchExpensesByIdIntegratetion(t *testing.T) {
 		assert.Equal(t, mockData.Amount, respBody.Amount)
 		assert.Equal(t, mockData.Note, respBody.Note)
 		assert.Equal(t, mockData.Tags, respBody.Tags)
+	}
+}
+
+func TestUpdateExpensesIntegratetion(t *testing.T) {
+	db, teardown := setup(t)
+	defer teardown()
+	// Arrange
+	stmt, err := db.Prepare("INSERT INTO expenses (title, amount, note, tags) values ($1, $2, $3, $4) RETURNING id")
+	assert.NoError(t, err)
+	defer stmt.Close()
+
+	mockData := ExpensesRequest{
+		Title:  "mockTitle",
+		Amount: 10,
+		Note:   "mockNote",
+		Tags:   []string{"mockTags"},
+	}
+	row := stmt.QueryRow(mockData.Title, mockData.Amount, mockData.Note, pq.Array(mockData.Tags))
+
+	var id int64
+	err = row.Scan(&id)
+	assert.NoError(t, err)
+
+	targetUrl, err := url.Parse(fmt.Sprintf("http://localhost:%d/expenses", serverPort))
+	assert.NoError(t, err)
+	targetUrl = targetUrl.JoinPath(strconv.FormatInt(id, 10))
+
+	reqBody := ExpensesRequest{
+		Title:  "updateTitle",
+		Amount: 2000,
+		Note:   "UpdateNote",
+		Tags:   []string{"UpdateTags", "UpdateTags2"},
+	}
+	body, err := json.Marshal(reqBody)
+	if err != nil {
+		assert.Fail(t, "json marshal error")
+	}
+
+	req, err := http.NewRequest(http.MethodPut, targetUrl.String(), strings.NewReader(string(body)))
+	assert.NoError(t, err)
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	client := http.Client{}
+
+	// Act
+	resp, err := client.Do(req)
+	assert.NoError(t, err)
+
+	byteBody, err := io.ReadAll(resp.Body)
+	assert.NoError(t, err)
+	resp.Body.Close()
+
+	respBody := &ExpensesResponse{}
+	err = json.Unmarshal(byteBody, &respBody)
+	assert.NoError(t, err)
+
+	// Assertions
+	if assert.NoError(t, err) {
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+		assert.Equal(t, id, respBody.Id)
+		assert.Equal(t, reqBody.Title, respBody.Title)
+		assert.Equal(t, reqBody.Amount, respBody.Amount)
+		assert.Equal(t, reqBody.Note, respBody.Note)
+		assert.Equal(t, reqBody.Tags, respBody.Tags)
 	}
 }

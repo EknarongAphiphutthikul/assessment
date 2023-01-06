@@ -9,6 +9,7 @@ import (
 type Storage interface {
 	Insert(req ExpensesRequest) (*ExpensesResponse, error)
 	SearchById(id int64) (*ExpensesResponse, error)
+	Update(id int64, req ExpensesRequest) (*ExpensesResponse, error)
 }
 
 type Service struct {
@@ -33,7 +34,16 @@ func (s Service) SearchExpensesById(id int64) (*ExpensesResponse, error) {
 	resp, err := s.storage.SearchById(id)
 	if err != nil {
 		s.log.Errorf("Search Expenses By Id Error : %s", err)
-		return nil, &common.Error{Code: http.StatusInternalServerError, Desc: "Insert Expenses Error", OriginalError: err}
+		return nil, &common.Error{Code: http.StatusInternalServerError, Desc: "Search Expenses By Id Error", OriginalError: err}
+	}
+	return resp, nil
+}
+
+func (s Service) UpdateExpenses(id int64, req ExpensesRequest) (*ExpensesResponse, error) {
+	resp, err := s.storage.Update(id, req)
+	if err != nil {
+		s.log.Errorf("Update Expenses Error : %s", err)
+		return nil, &common.Error{Code: http.StatusInternalServerError, Desc: "Update Expenses Error", OriginalError: err}
 	}
 	return resp, nil
 }

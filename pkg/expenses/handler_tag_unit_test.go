@@ -19,6 +19,7 @@ import (
 type ServiceSuccess struct {
 	addExpensesWasCalled        bool
 	searchExpensesByIdWasCalled bool
+	updateExpensesWasCalled     bool
 }
 
 func (s *ServiceSuccess) AddExpenses(req ExpensesRequest) (*ExpensesResponse, error) {
@@ -45,9 +46,22 @@ func (s *ServiceSuccess) SearchExpensesById(id int64) (*ExpensesResponse, error)
 	return resp, nil
 }
 
+func (s *ServiceSuccess) UpdateExpenses(id int64, req ExpensesRequest) (*ExpensesResponse, error) {
+	s.updateExpensesWasCalled = true
+	resp := &ExpensesResponse{
+		Id:     id,
+		Title:  req.Title,
+		Amount: req.Amount,
+		Note:   req.Note,
+		Tags:   req.Tags,
+	}
+	return resp, nil
+}
+
 type ServiceError struct {
 	addExpensesWasCalled        bool
 	searchExpensesByIdWasCalled bool
+	updateExpensesWasCalled     bool
 	statusCodeError             int
 }
 
@@ -58,7 +72,12 @@ func (s *ServiceError) AddExpenses(req ExpensesRequest) (*ExpensesResponse, erro
 
 func (s *ServiceError) SearchExpensesById(id int64) (*ExpensesResponse, error) {
 	s.searchExpensesByIdWasCalled = true
-	return nil, &Err{}
+	return nil, &common.Error{Code: s.statusCodeError}
+}
+
+func (s *ServiceError) UpdateExpenses(id int64, req ExpensesRequest) (*ExpensesResponse, error) {
+	s.updateExpensesWasCalled = true
+	return nil, &common.Error{Code: s.statusCodeError}
 }
 
 func TestAddExpensesHandler(t *testing.T) {
@@ -211,6 +230,111 @@ func TestSearchExpensesByIdHandler(t *testing.T) {
 
 		// Act
 		err := handler.SearchExpensesById(c)
+
+		// Assertions
+		if assert.NoError(t, err) {
+			assert.Equal(t, http.StatusBadRequest, rec.Code)
+		}
+	})
+}
+
+func TestUpdateExpensesHandler(t *testing.T) {
+	t.Run("should return http status code = 200 and ExpensesResponse when no error that service.UpdateExpenses()", func(t *testing.T) {
+		// Arrange
+		reqBody := ExpensesRequest{
+			Title:  "mockTitle",
+			Amount: 10,
+			Note:   "mockNote",
+			Tags:   []string{"mockTags"},
+		}
+		body, err := json.Marshal(reqBody)
+		if err != nil {
+			assert.Fail(t, "json marshal error")
+		}
+
+		e := echo.New()
+		req := httptest.NewRequest(http.MethodPut, "/expenses", strings.NewReader(string(body)))
+		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+		rec := httptest.NewRecorder()
+
+		id := int64(23)
+		c := e.NewContext(req, rec)
+		c.SetPath("/:id")
+		c.SetParamNames("id")
+		c.SetParamValues(strconv.FormatInt(id, 10))
+
+		service := &ServiceSuccess{}
+		log := logrus.New()
+		handler := NewHandler(service, log)
+
+		// Act
+		err = handler.UpdateExpenses(c)
+
+		// Assertions
+		if assert.NoError(t, err) {
+			assert.Equal(t, http.StatusOK, rec.Code)
+			resp := &ExpensesResponse{}
+			json.Unmarshal(rec.Body.Bytes(), &resp)
+			assert.Equal(t, id, resp.Id)
+			assert.Equal(t, reqBody.Title, resp.Title)
+			assert.Equal(t, reqBody.Amount, resp.Amount)
+			assert.Equal(t, reqBody.Note, resp.Note)
+			assert.Equal(t, reqBody.Tags, resp.Tags)
+		}
+	})
+
+	t.Run("should return http status code = 500 when error that service.UpdateExpenses()", func(t *testing.T) {
+		// Arrange
+		reqBody := ExpensesRequest{
+			Title:  "mockTitle",
+			Amount: 10,
+			Note:   "mockNote",
+			Tags:   []string{"mockTags"},
+		}
+		body, err := json.Marshal(reqBody)
+		if err != nil {
+			assert.Fail(t, "json marshal error")
+		}
+
+		e := echo.New()
+		req := httptest.NewRequest(http.MethodPut, "/expenses", strings.NewReader(string(body)))
+		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+		rec := httptest.NewRecorder()
+
+		id := int64(23)
+		c := e.NewContext(req, rec)
+		c.SetPath("/:id")
+		c.SetParamNames("id")
+		c.SetParamValues(strconv.FormatInt(id, 10))
+
+		service := &ServiceError{statusCodeError: http.StatusBadGateway}
+		log := logrus.New()
+		handler := NewHandler(service, log)
+
+		// Act
+		err = handler.UpdateExpenses(c)
+
+		// Assertions
+		if assert.NoError(t, err) {
+			assert.Equal(t, service.statusCodeError, rec.Code)
+		}
+	})
+
+	t.Run("should return http status code = 400 when not send param :id", func(t *testing.T) {
+		// Arrange
+		e := echo.New()
+		req := httptest.NewRequest(http.MethodPut, "/expenses/", nil)
+		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+		rec := httptest.NewRecorder()
+
+		c := e.NewContext(req, rec)
+
+		service := &ServiceError{}
+		log := logrus.New()
+		handler := NewHandler(service, log)
+
+		// Act
+		err := handler.UpdateExpenses(c)
 
 		// Assertions
 		if assert.NoError(t, err) {

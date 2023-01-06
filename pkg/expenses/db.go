@@ -48,3 +48,20 @@ func (mgmt DataMgmt) SearchById(id int64) (*ExpensesResponse, error) {
 
 	return result, nil
 }
+
+func (mgmt DataMgmt) Update(id int64, req ExpensesRequest) (*ExpensesResponse, error) {
+	stmt, err := mgmt.dataMgmt.Prepare("UPDATE expenses SET title = $1, amount = $2, note = $3, tags = $4 WHERE id = $5 RETURNING id, title, amount, note, tags")
+	if err != nil {
+		return nil, err
+	}
+	defer stmt.Close()
+
+	row := stmt.QueryRow(req.Title, req.Amount, req.Note, pq.Array(req.Tags), id)
+
+	result := &ExpensesResponse{}
+	err = row.Scan(&result.Id, &result.Title, &result.Amount, &result.Note, pq.Array(&result.Tags))
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
+}
