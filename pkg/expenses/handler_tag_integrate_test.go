@@ -41,6 +41,7 @@ func setup(t *testing.T) (*sql.DB, func()) {
 		e.POST("/expenses", handler.AddExpenses)
 		e.GET("/expenses/:id", handler.SearchExpensesById)
 		e.PUT("/expenses/:id", handler.UpdateExpenses)
+		e.GET("/expenses", handler.SearchExpensesAll)
 		e.Start(fmt.Sprintf(":%d", serverPort))
 	}(eh, db)
 	for {
@@ -218,5 +219,52 @@ func TestUpdateExpensesIntegratetion(t *testing.T) {
 		assert.Equal(t, reqBody.Amount, respBody.Amount)
 		assert.Equal(t, reqBody.Note, respBody.Note)
 		assert.Equal(t, reqBody.Tags, respBody.Tags)
+	}
+}
+
+func TestSearchExpensesAllIntegratetion(t *testing.T) {
+	db, teardown := setup(t)
+	defer teardown()
+	// Arrange
+	stmt, err := db.Prepare("DELETE FROM expenses")
+	assert.NoError(t, err)
+	defer stmt.Close()
+
+	_, err = stmt.Exec()
+	assert.NoError(t, err)
+
+	stmt, err = db.Prepare("INSERT INTO expenses (title, amount, note, tags) values ($1, $2, $3, $4)")
+	assert.NoError(t, err)
+
+	mockData := ExpensesRequest{
+		Title:  "mockTitle",
+		Amount: 10,
+		Note:   "mockNote",
+		Tags:   []string{"mockTags"},
+	}
+	_, err = stmt.Exec(mockData.Title, mockData.Amount, mockData.Note, pq.Array(mockData.Tags))
+	assert.NoError(t, err)
+
+	req, err := http.NewRequest(http.MethodGet, fmt.Sprintf("http://localhost:%d/expenses", serverPort), nil)
+	assert.NoError(t, err)
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	client := http.Client{}
+
+	// Act
+	resp, err := client.Do(req)
+	assert.NoError(t, err)
+
+	byteBody, err := io.ReadAll(resp.Body)
+	assert.NoError(t, err)
+	resp.Body.Close()
+
+	respBody := []ExpensesResponse{}
+	err = json.Unmarshal(byteBody, &respBody)
+	assert.NoError(t, err)
+
+	// Assertions
+	if assert.NoError(t, err) {
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+		assert.Len(t, respBody, 1)
 	}
 }

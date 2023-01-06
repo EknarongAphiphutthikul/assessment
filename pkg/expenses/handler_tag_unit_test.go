@@ -20,6 +20,7 @@ type ServiceSuccess struct {
 	addExpensesWasCalled        bool
 	searchExpensesByIdWasCalled bool
 	updateExpensesWasCalled     bool
+	searchExpensesAllWasCalled  bool
 }
 
 func (s *ServiceSuccess) AddExpenses(req ExpensesRequest) (*ExpensesResponse, error) {
@@ -58,10 +59,32 @@ func (s *ServiceSuccess) UpdateExpenses(id int64, req ExpensesRequest) (*Expense
 	return resp, nil
 }
 
+func (s *ServiceSuccess) SearchExpensesAll() ([]ExpensesResponse, error) {
+	s.searchExpensesAllWasCalled = true
+	resp := []ExpensesResponse{
+		{
+			Id:     1,
+			Title:  "mockTitle",
+			Amount: 10,
+			Note:   "mockNote",
+			Tags:   []string{"mockTags"},
+		},
+		{
+			Id:     2,
+			Title:  "mockTitle2",
+			Amount: 9000,
+			Note:   "mockNote2",
+			Tags:   []string{"mockTags2"},
+		},
+	}
+	return resp, nil
+}
+
 type ServiceError struct {
 	addExpensesWasCalled        bool
 	searchExpensesByIdWasCalled bool
 	updateExpensesWasCalled     bool
+	searchExpensesAllWasCalled  bool
 	statusCodeError             int
 }
 
@@ -77,6 +100,11 @@ func (s *ServiceError) SearchExpensesById(id int64) (*ExpensesResponse, error) {
 
 func (s *ServiceError) UpdateExpenses(id int64, req ExpensesRequest) (*ExpensesResponse, error) {
 	s.updateExpensesWasCalled = true
+	return nil, &common.Error{Code: s.statusCodeError}
+}
+
+func (s *ServiceError) SearchExpensesAll() ([]ExpensesResponse, error) {
+	s.searchExpensesAllWasCalled = true
 	return nil, &common.Error{Code: s.statusCodeError}
 }
 
@@ -339,6 +367,55 @@ func TestUpdateExpensesHandler(t *testing.T) {
 		// Assertions
 		if assert.NoError(t, err) {
 			assert.Equal(t, http.StatusBadRequest, rec.Code)
+		}
+	})
+}
+
+func TestSearchExpensesAllHandler(t *testing.T) {
+	t.Run("should return http status code = 200 and ExpensesResponse when no error that service.SearchExpensesAll()", func(t *testing.T) {
+		// Arrange
+		e := echo.New()
+		req := httptest.NewRequest(http.MethodGet, "/expenses", nil)
+		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+		rec := httptest.NewRecorder()
+
+		c := e.NewContext(req, rec)
+
+		service := &ServiceSuccess{}
+		log := logrus.New()
+		handler := NewHandler(service, log)
+
+		// Act
+		err := handler.SearchExpensesAll(c)
+
+		// Assertions
+		if assert.NoError(t, err) {
+			assert.Equal(t, http.StatusOK, rec.Code)
+			resp := []ExpensesResponse{}
+			json.Unmarshal(rec.Body.Bytes(), &resp)
+			assert.Len(t, resp, 2)
+		}
+	})
+
+	t.Run("should return http status code = 500 when error that service.SearchExpensesAll()", func(t *testing.T) {
+		// Arrange
+		e := echo.New()
+		req := httptest.NewRequest(http.MethodGet, "/expenses", nil)
+		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+		rec := httptest.NewRecorder()
+
+		c := e.NewContext(req, rec)
+
+		service := &ServiceError{statusCodeError: http.StatusTooManyRequests}
+		log := logrus.New()
+		handler := NewHandler(service, log)
+
+		// Act
+		err := handler.SearchExpensesAll(c)
+
+		// Assertions
+		if assert.NoError(t, err) {
+			assert.Equal(t, service.statusCodeError, rec.Code)
 		}
 	})
 }
