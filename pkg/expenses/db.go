@@ -65,3 +65,29 @@ func (mgmt DataMgmt) Update(id int64, req ExpensesRequest) (*ExpensesResponse, e
 	}
 	return result, nil
 }
+
+func (mgmt DataMgmt) SearchAll(id int64) ([]ExpensesResponse, error) {
+	stmt, err := mgmt.dataMgmt.Prepare("select id, title, amount, note, tags from expenses")
+	if err != nil {
+		return nil, err
+	}
+	defer stmt.Close()
+
+	rows, err := stmt.Query()
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	result := []ExpensesResponse{}
+	for rows.Next() {
+		exp := &ExpensesResponse{}
+		err = rows.Scan(&exp.Id, &exp.Title, &exp.Amount, &exp.Note, pq.Array(&exp.Tags))
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, *exp)
+	}
+
+	return result, nil
+}
