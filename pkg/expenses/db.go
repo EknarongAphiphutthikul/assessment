@@ -19,6 +19,7 @@ func (mgmt DataMgmt) Insert(req ExpensesRequest) (*ExpensesResponse, error) {
 	if err != nil {
 		return nil, err
 	}
+	defer stmt.Close()
 
 	row := stmt.QueryRow(req.Title, req.Amount, req.Note, pq.Array(req.Tags))
 
@@ -35,6 +36,7 @@ func (mgmt DataMgmt) SearchById(id int64) (*ExpensesResponse, error) {
 	if err != nil {
 		return nil, err
 	}
+	defer stmt.Close()
 
 	rows := stmt.QueryRow(id)
 
