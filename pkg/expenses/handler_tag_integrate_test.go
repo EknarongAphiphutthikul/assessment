@@ -22,14 +22,14 @@ import (
 
 const serverPort = 80
 
-func TestAddExpensesHandler(t *testing.T) {
+func setup(t *testing.T) (*sql.DB, func()) {
 	// Setup server
 	eh := echo.New()
-	go func(e *echo.Echo) {
-		db, err := sql.Open("postgres", "postgresql://root:root@db/go-example-db?sslmode=disable")
-		if err != nil {
-			assert.Error(t, err)
-		}
+	db, err := sql.Open("postgres", "postgresql://root:root@db/go-example-db?sslmode=disable")
+	if err != nil {
+		assert.Error(t, err)
+	}
+	go func(e *echo.Echo, db *sql.DB) {
 		logRus := logrus.New()
 		storage := New(db)
 		service := NewService(storage, logRus)
@@ -37,7 +37,7 @@ func TestAddExpensesHandler(t *testing.T) {
 
 		e.POST("/expenses", handler.AddExpenses)
 		e.Start(fmt.Sprintf(":%d", serverPort))
-	}(eh)
+	}(eh, db)
 	for {
 		conn, err := net.DialTimeout("tcp", fmt.Sprintf("localhost:%d", serverPort), 30*time.Second)
 		if err != nil {
@@ -48,6 +48,19 @@ func TestAddExpensesHandler(t *testing.T) {
 			break
 		}
 	}
+	return db, func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		err = eh.Shutdown(ctx)
+		assert.NoError(t, err)
+		err = db.Close()
+		assert.NoError(t, err)
+	}
+}
+
+func TestAddExpensesHandlerIntegratetion(t *testing.T) {
+	_, teardown := setup(t)
+	defer teardown()
 	// Arrange
 	reqBody := ExpensesRequest{
 		Title:  "mockTitle",
@@ -86,9 +99,4 @@ func TestAddExpensesHandler(t *testing.T) {
 		assert.Equal(t, reqBody.Note, respBody.Note)
 		assert.Equal(t, reqBody.Tags, respBody.Tags)
 	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	err = eh.Shutdown(ctx)
-	assert.NoError(t, err)
 }
