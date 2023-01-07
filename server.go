@@ -139,6 +139,15 @@ func initMiddleware(e *echo.Echo, ins *config.Instance) {
 			return nil
 		},
 	}))
+	e.Use(func(next echo.HandlerFunc) echo.HandlerFunc {
+		return func(c echo.Context) error {
+			value := c.Request().Header.Values("Authorization")
+			if value != nil && value[0] == ins.Config.AuthKey() {
+				return next(c)
+			}
+			return echo.NewHTTPError(http.StatusUnauthorized, "Please provide valid credentials")
+		}
+	})
 	e.Use(middleware.Recover())
 }
 
