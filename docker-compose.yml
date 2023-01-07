@@ -1,0 +1,15 @@
+version: '3.2'
+
+networks:
+  kbtg-go-network:
+
+services:
+  app:
+    image: kbtg/kampus/go/assessment:latest
+    environment:
+      PORT: 2565
+      DATABASE_URL: postgresql://root:root@dblocal/go-example-db?sslmode=disable
+    ports:
+      - 2565:2565
+    networks:
+      - kbtg-go-network
